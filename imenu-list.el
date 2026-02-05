@@ -46,6 +46,7 @@
 (require 'imenu)
 (require 'cl-lib)
 (require 'hideshow)
+(eval-when-compile (require 'subr-x))
 
 (defvar imenu-list-buffer-name "*Ilist*"
   "Obsolete.  Use `imenu-list--buffer-name' function instead.
@@ -182,6 +183,20 @@ automatically during update."
   :group 'imenu-list
   :type 'boolean)
 
+(defcustom imenu-list-entry-indicator ">"
+  "Character string to mark the current entry, or nil to use `hl-line-mode'.
+When non-nil, should be a short string such as \">\".  The indicator
+is placed before the entry name, replacing indentation space.  It is
+only visible when the imenu-list window is not the selected window;
+when imenu-list is selected, the cursor itself shows your position.
+Enabling this adds two extra columns of left padding to all entries
+to ensure the indicator fits at every nesting depth.
+If you use `global-hl-line-mode', consider excluding
+`imenu-list-major-mode' from `hl-line-global-modes'."
+  :group 'imenu-list
+  :type '(choice (const :tag "Use hl-line highlighting (default)" nil)
+                 (string :tag "Indicator character")))
+
 (defcustom imenu-list-custom-position-translator nil
   "Custom translator of imenu positions to buffer positions.
 Imenu can be customized on a per-buffer basis not to use regular buffer
@@ -296,9 +311,12 @@ current entry (current entry is a \"father\")."
 ;;; print entries
 
 (defun imenu-list--depth-string (depth)
-  "Return a prefix string representing an entry's DEPTH."
+  "Return a prefix string representing an entry's DEPTH.
+When `imenu-list-entry-indicator' is non-nil, prepend two extra
+spaces so every entry has room for the indicator."
   (let ((indents (cl-loop for i from 1 to depth collect "  ")))
-    (format "%s%s"
+    (format "%s%s%s"
+            (if imenu-list-entry-indicator "  " "")
             (mapconcat #'identity indents "")
             (if indents " " ""))))
 
@@ -382,12 +400,37 @@ buffer, or in other words: this hook is ran by both
   :group 'imenu-list
   :type 'hook)
 
+(defcustom imenu-list-close-after-jump t
+  "When non-nil, close imenu-list after jumping to a leaf entry via RET.
+Subalist entries still toggle folding as usual.
+\"Close\" means deactivating `imenu-list-minor-mode', which kills
+the imenu-list buffer and its window."
+  :group 'imenu-list
+  :type 'boolean)
+
+(defcustom imenu-list-push-xref-marker t
+  "When non-nil, push a marker before jumping so `xref-go-back' returns.
+Before `imenu-list--goto-entry' switches to the target position,
+the current position in the displayed buffer is saved on the xref
+marker stack.  This allows \\[xref-go-back] to return to the
+previous location.
+Requires Emacs 25.1 or later."
+  :group 'imenu-list
+  :type 'boolean)
+
 (defun imenu-list--find-entry ()
   "Find in `imenu-list--line-entries' the entry in the current line."
   (nth (1- (line-number-at-pos)) imenu-list--line-entries))
 
 (defun imenu-list--goto-entry (entry)
-  "Jump to ENTRY in the original buffer."
+  "Jump to ENTRY in the original buffer.
+When `imenu-list-push-xref-marker' is non-nil, save the current
+position in the displayed buffer on the xref marker stack first."
+  (when (and imenu-list-push-xref-marker
+             (fboundp 'xref-push-marker-stack)
+             (buffer-live-p imenu-list--displayed-buffer))
+    (with-current-buffer imenu-list--displayed-buffer
+      (xref-push-marker-stack)))
   (pop-to-buffer imenu-list--displayed-buffer)
   (imenu entry)
   (run-hooks 'imenu-list-after-jump-hook)
@@ -405,12 +448,16 @@ buffer, or in other words: this hook is ran by both
     (imenu-list-goto-entry)))
 
 (defun imenu-list-ret-dwim ()
-  "Jump to or toggle the entry at `point'."
+  "Jump to or toggle the entry at `point'.
+When `imenu-list-close-after-jump' is non-nil, jumping to a leaf
+entry also deactivates `imenu-list-minor-mode'."
   (interactive)
   (let ((entry (imenu-list--find-entry)))
     (if (imenu--subalist-p entry)
         (hs-toggle-hiding)
-      (imenu-list--goto-entry entry))))
+      (imenu-list--goto-entry entry)
+      (when imenu-list-close-after-jump
+        (imenu-list-minor-mode -1)))))
 
 (defun imenu-list-display-dwim ()
   "Display or toggle the entry at `point'."
@@ -429,6 +476,8 @@ buffer, or in other words: this hook is ran by both
 ;; eglot is loaded.
 (declare-function eglot--lsp-position-to-point "eglot")
 (declare-function eglot-managed-p "eglot")
+(declare-function xref-push-marker-stack "xref")
+(declare-function window-text-pixel-size "xdisp.c")
 
 (defun imenu-list--translate-eglot-position (pos)
   "Get real position of position object POS created by eglot."
@@ -490,18 +539,53 @@ continue with the regular logic to find a translator function."
             (setq offset entry-pos)
             (setq match-entry entry)))))))
 
+(defun imenu-list--clear-indicators ()
+  "Remove all entry indicators in the current imenu-list buffer.
+Replace indicator marks with spaces."
+  (when imenu-list-entry-indicator
+    (let ((inhibit-read-only t)
+          (pattern (format "^\\( *\\)%s "
+                           (regexp-quote imenu-list-entry-indicator))))
+      (save-excursion
+        (goto-char (point-min))
+        (while (re-search-forward pattern nil t)
+          (replace-match "\\1  "))))))
+
 (defun imenu-list--show-current-entry ()
-  "Move the imenu-list buffer's point to the current position's entry."
+  "Move the imenu-list buffer's point to the current position's entry.
+When `imenu-list-entry-indicator' is non-nil, mark the entry with
+the indicator character instead of using `hl-line-mode'.  The
+indicator is only shown when the imenu-list window is not selected."
   (let ((ilist-buffer (imenu-list-get-buffer-create)))
     (when (and ilist-buffer (get-buffer-window ilist-buffer))
-      (let* ((current-entry (imenu-list--current-entry))
+      (let* ((active-win (selected-window))
+             (ilist-win (get-buffer-window ilist-buffer))
+             (current-entry (imenu-list--current-entry))
              (line-entries (buffer-local-value 'imenu-list--line-entries ilist-buffer))
              (line-number (cl-position current-entry line-entries :test 'equal)))
         (when line-number
-          (with-selected-window (get-buffer-window ilist-buffer)
-            (goto-char (point-min))
-            (forward-line line-number)
-            (hl-line-mode 1)))))))
+          (with-selected-window ilist-win
+            (if imenu-list-entry-indicator
+                (progn
+                  (imenu-list--clear-indicators)
+                  (unless (eq active-win ilist-win)
+                    (goto-char (point-min))
+                    (forward-line line-number)
+                    (let* ((bol (line-beginning-position))
+                           (inhibit-read-only t)
+                           (text-start (save-excursion
+                                         (goto-char bol)
+                                         (skip-chars-forward " ")
+                                         (point))))
+                      (when (>= (- text-start bol) 2)
+                        (save-excursion
+                          (goto-char (- text-start 2))
+                          (delete-char 2)
+                          (insert imenu-list-entry-indicator " "))))))
+              ;; Default: use hl-line
+              (goto-char (point-min))
+              (forward-line line-number)
+              (hl-line-mode 1))))))))
 
 ;;; window display settings
 
@@ -525,6 +609,25 @@ directly to `split-window'."
   "If non-nil, auto-resize window after updating the imenu-list buffer.
 Resizing the width works only for Emacs 24.4 and newer.  Resizing the
 height doesn't suffer that limitation."
+  :group 'imenu-list
+  :type 'boolean)
+
+(defcustom imenu-list-window-max-width 0.3
+  "Maximum width for the imenu-list window when auto-resizing.
+When non-nil, should be a positive number.  If it is a float between
+0 and 1, it is treated as a fraction of the frame width.  If it is an
+integer, it specifies the absolute maximum column count.  In both
+cases, the effective maximum is at least 20 columns.
+Only takes effect when `imenu-list-auto-resize' is non-nil."
+  :group 'imenu-list
+  :type '(choice (const :tag "No limit" nil)
+                 (number :tag "Max width (integer=columns, float=fraction)")))
+
+(defcustom imenu-list-echo-truncated-entry t
+  "When non-nil, show the full text of truncated entries in the echo area.
+If the current line in the imenu-list buffer extends beyond the
+window width, display the full line text in the minibuffer.
+Requires Emacs 25.1 or later for `window-text-pixel-size'."
   :group 'imenu-list
   :type 'boolean)
 
@@ -616,13 +719,21 @@ If called from an ilist buffer, return the current buffer."
               buffer))))))
 
 (defun imenu-list-resize-window ()
-  "Resize imenu-list window according to its content."
+  "Resize imenu-list window according to its content.
+When `imenu-list-window-max-width' is non-nil, cap the width."
   (let ((ilist-buffer (imenu-list-get-buffer-create)))
     (when (and ilist-buffer
                (buffer-local-value 'imenu-list--line-entries ilist-buffer))
-      (let ((fit-window-to-buffer-horizontally t))
-        (mapc #'fit-window-to-buffer
-              (get-buffer-window-list ilist-buffer))))))
+      (let* ((fit-window-to-buffer-horizontally t)
+             (max-width (when imenu-list-window-max-width
+                          (max 20
+                               (if (and (floatp imenu-list-window-max-width)
+                                        (< imenu-list-window-max-width 1))
+                                   (round (* (frame-width)
+                                             imenu-list-window-max-width))
+                                 (round imenu-list-window-max-width))))))
+        (dolist (win (get-buffer-window-list ilist-buffer))
+          (fit-window-to-buffer win nil nil max-width))))))
 
 (defun imenu-list-update (&optional force-update)
   "Update the imenu-list buffer.
@@ -729,6 +840,23 @@ If `imenu-list-minor-mode' is already disabled, just call `quit-window'."
           (imenu-list-minor-mode -1))
       (quit-window))))
 
+(defun imenu-list--echo-entry ()
+  "Show the full text of the current line if it is truncated.
+Active via `post-command-hook' in imenu-list buffers when
+`imenu-list-echo-truncated-entry' is non-nil."
+  (when (and imenu-list-echo-truncated-entry
+             (derived-mode-p 'imenu-list-major-mode)
+             (fboundp 'window-text-pixel-size))
+    (let ((px-line (car (window-text-pixel-size nil
+                          (line-beginning-position)
+                          (line-end-position))))
+          (px-win (window-body-width nil t)))
+      (when (>= px-line (1- px-win))
+        (message "%s" (string-trim
+                       (buffer-substring-no-properties
+                        (line-beginning-position)
+                        (line-end-position))))))))
+
 (defvar imenu-list-major-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "RET") #'imenu-list-ret-dwim)
@@ -750,7 +878,8 @@ If `imenu-list-minor-mode' is already disabled, just call `quit-window'."
   (setq-local imenu-list--last-location nil)
   (add-hook 'kill-buffer-hook #'imenu-list--cleanup-ilist-buffer nil t)
   (read-only-mode 1)
-  (imenu-list-install-hideshow))
+  (imenu-list-install-hideshow)
+  (add-hook 'post-command-hook #'imenu-list--echo-entry nil t))
 (add-hook 'imenu-list-major-mode-hook #'hs-minor-mode)
 
 (defun imenu-list--set-mode-line ()

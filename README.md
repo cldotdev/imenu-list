@@ -1,65 +1,122 @@
 # imenu-list
-This Emacs minor-mode creates an automatically updated buffer called `*Ilist*` that is populated with the current buffer's imenu entries. The `*Ilist*` buffer is typically shown as a sidebar (Emacs vertically splits the window).
 
-To activate imenu-list manually, use `M-x imenu-list-minor-mode`.  
-To activate it automatically on startup, add this to your init file:
-`(imenu-list-minor-mode)`
+This Emacs minor-mode creates an automatically updated buffer populated with the current buffer's imenu entries. The imenu-list buffer is typically shown as a sidebar (Emacs vertically splits the window).
 
-You can also use `M-x imenu-list-smart-toggle` to toggle imenu-list (and its window) on and off.
-You may wish to bind it to a key, for example `C-'`:
+Each source buffer gets its own independent imenu-list buffer named `*Ilist: <buffer-name>*`, so you can have simultaneous imenu sidebars for different files.
+
+## Getting Started
+
+To activate imenu-list for the current buffer, use `M-x imenu-list-minor-mode`.
+
+You can also use `M-x imenu-list-smart-toggle` to toggle imenu-list on and off. It enables or disables the minor-mode depending on whether the imenu-list window is currently visible. You may wish to bind it to a key:
+
 ```elisp
 (global-set-key (kbd "C-'") #'imenu-list-smart-toggle)
 ```
-The old suggestion was to bind `imenu-list-minor-mode`; however, `imenu-list-minor-mode` does not take the visibility of the `*Ilist*` buffer into account, and only checks the current value of `imenu-list-minor-mode`. The smart-toggle enables or disables the minor-mode depending on the visibility of the `*Ilist*` buffer.
 
-The imenu of the current buffer will be displayed in the `*Ilist*` buffer. From the `*Ilist*` buffer, you can use these shortcuts:  
-- `<enter>`: goto entry under cursor, or toggle case-folding.  
-- `<space>`: display entry under cursor, but `*Ilist*` buffer remains current  
-- `<mouse click>`: same as \<enter\>  
-- `<tab>`: expand/collapse subtree (`hs-toggle-hiding`)  
-- `f`: same as \<tab\>  
-- `n`: next line  
-- `p`: previous line  
-- `g`: manually refresh entries  
-- `q`: quit window and disable `imenu-list-minor-mode`  
+## Key Bindings
 
-Some users might prefer the `imenu-list-minor-mode`/`imenu-list-smart-toggle` commands to also set the focus to the `*Ilist*` window.
-To do so, use the variable `imenu-list-focus-after-activation`:
+From the imenu-list buffer, you can use these shortcuts:
+
+- `RET`: go to entry under cursor, or toggle folding for subtree entries
+- `SPC`: display entry under cursor, but the imenu-list buffer remains current
+- `mouse click`: same as `RET`
+- `TAB`: expand/collapse subtree (`hs-toggle-hiding`)
+- `f`: same as `TAB`
+- `n`: next line
+- `p`: previous line
+- `g`: manually refresh entries
+- `q`: quit window and disable `imenu-list-minor-mode`
+
+## Configuration
+
+### Focus After Activation
+
+Some users might prefer the `imenu-list-minor-mode`/`imenu-list-smart-toggle` commands to also set the focus to the imenu-list window:
+
 ```elisp
 (setq imenu-list-focus-after-activation t)
 ```
 
-The size of `*Ilist*` window can be automatically resized every time the `*Ilist*` buffer is
-updated. To do so, use the variable `imenu-list-auto-resize`:
+### Automatic Update
+
+When `imenu-list-minor-mode` is enabled, the imenu-list buffer is updated automatically whenever the user is idle, with a default delay of `idle-update-delay` seconds. To change the delay time, customize `imenu-list-idle-update-delay`. To disable auto-update entirely:
+
+```elisp
+(setq imenu-list-auto-update nil)
+```
+
+### Auto-Resize
+
+The imenu-list window can be automatically resized every time the buffer is updated:
+
 ```elisp
 (setq imenu-list-auto-resize t)
 ```
-Note that the width of the window won't be resized if you're using emacs 24.3 or older.
-That's because of a limitation in `fit-window-to-buffer`.
-It is possible to take further actions every time the `*Ilist*` buffer is updated, by using
-the hook `imenu-list-update-hook`.
 
-After jumping to an entry from the `*Ilist*` buffer, e.g. by pressing `<enter>` or `<space>`, the target buffer will be recentered so the cursor is in the middle. To cancel that, reset the hook `imenu-list-after-jump-hook`:
+Note that width resizing requires Emacs 24.4 or later due to a limitation in `fit-window-to-buffer`.
+
+By default, the window width is capped at 30% of the frame width (`imenu-list-window-max-width` defaults to `0.3`). A float between 0 and 1 is treated as a fraction of the frame width; an integer specifies an absolute column count. To remove the cap:
+
+```elisp
+(setq imenu-list-window-max-width nil)
+```
+
+### After-Jump Hook
+
+After jumping to an entry from the imenu-list buffer (e.g. via `RET` or `SPC`), the target buffer is recentered so the cursor is in the middle. To cancel that, reset `imenu-list-after-jump-hook`:
 
 ```elisp
 (setq imenu-list-after-jump-hook nil)
 ```
 
-To use a different recentering logic, for example `recenter-top-bottom`, use the following:
+### Close After Jump
+
+By default, pressing `RET` on a leaf entry jumps to it and then automatically closes the imenu-list window by deactivating `imenu-list-minor-mode`. Subtree entries still toggle folding as usual. To keep the window open after jumping:
 
 ```elisp
-(setq imenu-list-after-jump-hook nil)
-(add-hook 'imenu-list-after-jump-hook #'recenter-top-bottom)
+(setq imenu-list-close-after-jump nil)
 ```
 
-## Automatic Update
+### Xref Marker Stack Integration
 
-When `imenu-list-minor-mode` is enabled, the `*Ilist*` buffer is updated automatically whenever the user is idle, with a default delay time of 0.5 seconds. To change the delay time, set the value of `imenu-list-idle-update-delay-time`.
+By default, imenu-list pushes a marker onto the xref marker stack before jumping. This allows `M-,` (`xref-go-back`) to return to the position before the jump. Requires Emacs 25.1 or later. To disable:
+
+```elisp
+(setq imenu-list-push-xref-marker nil)
+```
+
+### Entry Indicator
+
+By default, imenu-list marks the current entry with a `>` character instead of `hl-line-mode`. The indicator is only shown when the imenu-list window is not the selected window. To switch back to `hl-line-mode` highlighting:
+
+```elisp
+(setq imenu-list-entry-indicator nil)
+```
+
+If you use `global-hl-line-mode` with the indicator enabled, consider excluding `imenu-list-major-mode`:
+
+```elisp
+(setq hl-line-global-modes '(not imenu-list-major-mode))
+```
+
+### Echo Truncated Entries
+
+When the imenu-list window is narrow, long entry names may be truncated. By default, the full text of the current line is displayed in the echo area when it extends beyond the window width. Requires Emacs 25.1 or later. To disable:
+
+```elisp
+(setq imenu-list-echo-truncated-entry nil)
+```
+
+### Update Hook
+
+It is possible to take further actions every time the imenu-list buffer is updated by using the hook `imenu-list-update-hook`.
 
 ## Display
-imenu-list has several faces for showing different levels of nesting in the `*Ilist*` buffer. To customize them, see `M-x customize-group RET imenu-list RET`.
 
-The mode-line of `*Ilist*` buffer can be changed by customizing `imenu-list-mode-line-format`, also available via `M-x customize-group RET imenu-list RET`.
+imenu-list has several faces for showing different levels of nesting in the buffer. To customize them, see `M-x customize-group RET imenu-list RET`.
+
+The mode-line of the imenu-list buffer can be changed by customizing `imenu-list-mode-line-format`, also available via `M-x customize-group RET imenu-list RET`.
 
 Here are some pictures. Note that you can hide/show parts of the imenu list.
 
@@ -68,19 +125,16 @@ Here are some pictures. Note that you can hide/show parts of the imenu list.
 ![](https://github.com/bmag/imenu-list/blob/master/images/imenu-list-dark.png)
 
 ## Window Position and Size
-The size and position of `*Ilist*` window can be changed by customizing these variables:
-- `imenu-list-position`: should be `left`, `right`, `above` or `below`, to display the window
-at the left, right, top or bottom of the frame.
-- `imenu-list-size`: should be a positive integer or a percentage. If integer, decides the total
-number of rows/columns the window has. If percentage (0 < `imenu-list-size` < 1), decides the
-number of rows/columns relative to the total number of rows/columns in the frame.
 
-imenu-list controls its display by adding an entry to `display-buffer-alist`. If you want
-fuller control over how the window is displayed, you should replace that entry.
+The size and position of the imenu-list window can be changed by customizing these variables:
 
-If imenu-list can't open a new window (could happen when the frame is small or already split into many windows),
-the window will be displayed using the regular rules of `display-buffer`.
+- `imenu-list-position`: should be `left`, `right`, `above` or `below`, to display the window at the left, right, top or bottom of the frame.
+- `imenu-list-size`: should be a positive integer or a percentage. If integer, decides the total number of rows/columns the window has. If percentage (0 < `imenu-list-size` < 1), decides the number of rows/columns relative to the total number of rows/columns in the frame.
+
+imenu-list controls its display by adding an entry to `display-buffer-alist`. If you want fuller control over how the window is displayed, you should replace that entry.
+
+If imenu-list can't open a new window (could happen when the frame is small or already split into many windows), the window will be displayed using the regular rules of `display-buffer`.
 
 ### window-purpose
-For users of `window-purpose`, imenu-list adds an entry to `purpose-special-action-sequences`.
-If you want fuller control over how the window is displayed, you should replace that entry.
+
+For users of `window-purpose`, imenu-list adds an entry to `purpose-special-action-sequences`. If you want fuller control over how the window is displayed, you should replace that entry.
