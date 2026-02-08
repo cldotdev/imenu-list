@@ -400,7 +400,7 @@ buffer, or in other words: this hook is ran by both
   :group 'imenu-list
   :type 'hook)
 
-(defcustom imenu-list-close-after-jump t
+(defcustom imenu-list-close-after-jump nil
   "When non-nil, close imenu-list after jumping to a leaf entry via RET.
 Subalist entries still toggle folding as usual.
 \"Close\" means deactivating `imenu-list-minor-mode', which kills

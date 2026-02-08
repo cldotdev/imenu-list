@@ -72,10 +72,10 @@ After jumping to an entry from the imenu-list buffer (e.g. via `RET` or `SPC`), 
 
 ### Close After Jump
 
-By default, pressing `RET` on a leaf entry jumps to it and then automatically closes the imenu-list window by deactivating `imenu-list-minor-mode`. Subtree entries still toggle folding as usual. To keep the window open after jumping:
+By default, pressing `RET` on a leaf entry jumps to it while keeping the imenu-list window open. Subtree entries still toggle folding as usual. To automatically close the window after jumping:
 
 ```elisp
-(setq imenu-list-close-after-jump nil)
+(setq imenu-list-close-after-jump t)
 ```
 
 ### Xref Marker Stack Integration
