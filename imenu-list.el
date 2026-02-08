@@ -216,10 +216,10 @@ current buffer, or nil.  See `imenu-list-position-translator' for details."
 (defface imenu-list-entry-face-0
   '((((class color) (background light))
      :inherit imenu-list-entry-face
-     :foreground "maroon")
+     :foreground "blue")
     (((class color) (background dark))
      :inherit imenu-list-entry-face
-     :foreground "gold"))
+     :foreground "blue"))
   "Face for outermost imenu-list entries (depth 0)."
   :group 'imenu-list)
 
@@ -232,10 +232,10 @@ current buffer, or nil.  See `imenu-list-position-translator' for details."
 (defface imenu-list-entry-face-1
   '((((class color) (background light))
      :inherit imenu-list-entry-face
-     :foreground "dark green")
+     :foreground "cyan")
     (((class color) (background dark))
      :inherit imenu-list-entry-face
-     :foreground "light green"))
+     :foreground "cyan"))
   "Face for imenu-list entries with depth 1."
   :group 'imenu-list)
 
@@ -248,10 +248,10 @@ current buffer, or nil.  See `imenu-list-position-translator' for details."
 (defface imenu-list-entry-face-2
   '((((class color) (background light))
      :inherit imenu-list-entry-face
-     :foreground "dark blue")
+     :foreground "green")
     (((class color) (background dark))
      :inherit imenu-list-entry-face
-     :foreground "light blue"))
+     :foreground "green"))
   "Face for imenu-list entries with depth 2."
   :group 'imenu-list)
 
@@ -264,10 +264,10 @@ current buffer, or nil.  See `imenu-list-position-translator' for details."
 (defface imenu-list-entry-face-3
   '((((class color) (background light))
      :inherit imenu-list-entry-face
-     :foreground "orange red")
+     :foreground "magenta")
     (((class color) (background dark))
      :inherit imenu-list-entry-face
-     :foreground "sandy brown"))
+     :foreground "magenta"))
   "Face for imenu-list entries with depth 3."
   :group 'imenu-list)
 
@@ -275,6 +275,22 @@ current buffer, or nil.  See `imenu-list-position-translator' for details."
   '((t :inherit imenu-list-entry-face-3
        :weight bold :underline t))
   "Face for subalist entries with depth 0."
+  :group 'imenu-list)
+
+(defface imenu-list-entry-face-4
+  '((((class color) (background light))
+     :inherit imenu-list-entry-face
+     :foreground "yellow")
+    (((class color) (background dark))
+     :inherit imenu-list-entry-face
+     :foreground "yellow"))
+  "Face for imenu-list entries with depth 4."
+  :group 'imenu-list)
+
+(defface imenu-list-entry-subalist-face-4
+  '((t :inherit imenu-list-entry-face-4
+       :weight bold :underline t))
+  "Face for subalist entries with depth 4."
   :group 'imenu-list)
 
 (defun imenu-list--get-face (depth subalistp)
@@ -287,7 +303,8 @@ current entry (current entry is a \"father\")."
     (1 (if subalistp 'imenu-list-entry-subalist-face-1 'imenu-list-entry-face-1))
     (2 (if subalistp 'imenu-list-entry-subalist-face-2 'imenu-list-entry-face-2))
     (3 (if subalistp 'imenu-list-entry-subalist-face-3 'imenu-list-entry-face-3))
-    (t (if subalistp 'imenu-list-entry-subalist-face-3 'imenu-list-entry-face-3))))
+    (4 (if subalistp 'imenu-list-entry-subalist-face-4 'imenu-list-entry-face-4))
+    (t (if subalistp 'imenu-list-entry-subalist-face-4 'imenu-list-entry-face-4))))
 
 ;;; collect entries
 
