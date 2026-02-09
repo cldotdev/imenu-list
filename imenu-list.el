@@ -365,7 +365,7 @@ See `hs-minor-mode' for information on what is hide/show."
   (if (imenu--subalist-p entry)
       (progn
         (insert (imenu-list--depth-string depth))
-        (insert-button (format "+ %s" (car entry))
+        (insert-button (format "%s +" (car entry))
                        'face (imenu-list--get-face depth t)
                        'help-echo (format "Toggle: %s"
                                           (car entry))
@@ -911,7 +911,7 @@ Active via `post-command-hook' in imenu-list buffers when
   (setq-local comment-end "\\b\\B")
   (setq hs-special-modes-alist
         (cl-delete 'imenu-list-major-mode hs-special-modes-alist :key #'car))
-  (push `(imenu-list-major-mode "\\s-*\\+ " "\\s-*\\+ " ,comment-start imenu-list-forward-sexp nil)
+  (push `(imenu-list-major-mode ".* \\+$" ".* \\+$" ,comment-start imenu-list-forward-sexp nil)
         hs-special-modes-alist))
 
 (defun imenu-list-forward-sexp (&optional arg)
