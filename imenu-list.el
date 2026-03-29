@@ -640,6 +640,14 @@ Only takes effect when `imenu-list-auto-resize' is non-nil."
   :type '(choice (const :tag "No limit" nil)
                  (number :tag "Max width (integer=columns, float=fraction)")))
 
+(defcustom imenu-list-right-padding 2
+  "Number of extra columns added after auto-resizing the imenu-list window.
+This padding gives entries visual breathing room so they don't touch
+the window edge or get clipped by the truncation indicator.
+Only takes effect when `imenu-list-auto-resize' is non-nil."
+  :group 'imenu-list
+  :type 'natnum)
+
 (defcustom imenu-list-echo-truncated-entry t
   "When non-nil, show the full text of truncated entries in the echo area.
 If the current line in the imenu-list buffer extends beyond the
@@ -750,7 +758,11 @@ When `imenu-list-window-max-width' is non-nil, cap the width."
                                              imenu-list-window-max-width))
                                  (round imenu-list-window-max-width))))))
         (dolist (win (get-buffer-window-list ilist-buffer))
-          (fit-window-to-buffer win nil nil max-width))))))
+          (fit-window-to-buffer win nil nil max-width)
+          (when (> imenu-list-right-padding 0)
+            (ignore-errors
+              (window-resize win imenu-list-right-padding t))))))))
+
 
 (defun imenu-list-update (&optional force-update)
   "Update the imenu-list buffer.
